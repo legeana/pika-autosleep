@@ -4,3 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+anyhow = "1.0.86"
+clap = { version = "4.5.15", features = ["derive"] }
+log = "0.4.22"
+windows-service = "0.7.0"
+
+[dependencies.env_logger]
+version = "0.11.3"
+default-features = false
+features = ["auto-color"]
