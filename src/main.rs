@@ -5,6 +5,10 @@ mod install;
 mod service;
 
 fn main() -> Result<()> {
+    env_logger::Builder::new()
+        .filter_level(log::LevelFilter::Info)
+        .default_format()
+        .init();
     let args = cli::parse();
     match args.command {
         cli::Command::Install => {
