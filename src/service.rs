@@ -1,11 +1,11 @@
 use std::ffi::OsString;
-use std::sync::mpsc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
+use crossbeam_channel::{select_biased, tick, unbounded};
 use windows_service::service::{
-    ServiceControl, ServiceControlAccept, ServiceExitCode, ServiceState, ServiceStatus,
-    ServiceType, SessionChangeParam,
+    PowerEventParam, ServiceControl, ServiceControlAccept, ServiceExitCode, ServiceState,
+    ServiceStatus, ServiceType, SessionChangeReason,
 };
 use windows_service::service_control_handler::{self, ServiceControlHandlerResult};
 use windows_service::{define_windows_service, service_dispatcher};
@@ -28,8 +28,14 @@ fn service_main(args: Vec<OsString>) {
 }
 
 fn service_main_with_result(_args: Vec<OsString>) -> Result<()> {
-    let (shutdown_tx, shutdown_rx) = mpsc::channel();
+    let (shutdown_tx, shutdown_rx) = unbounded();
+    let (power_tx, power_rx) = unbounded();
+    let (session_tx, session_rx) = unbounded();
+    let ticker = tick(Duration::from_secs(60));
 
+    let events = ServiceControlAccept::SESSION_CHANGE
+        | ServiceControlAccept::STOP
+        | ServiceControlAccept::POWER_EVENT;
     let event_handler = move |event: ServiceControl| -> ServiceControlHandlerResult {
         match event {
             ServiceControl::Interrogate => ServiceControlHandlerResult::NoError,
@@ -37,7 +43,14 @@ fn service_main_with_result(_args: Vec<OsString>) -> Result<()> {
                 shutdown_tx.send(()).expect("shutdown_tx.send");
                 ServiceControlHandlerResult::NoError
             }
-            ServiceControl::SessionChange(session) => handle_session(session),
+            ServiceControl::SessionChange(msg) => {
+                session_tx.send(msg).expect("session_tx.send");
+                ServiceControlHandlerResult::NoError
+            }
+            ServiceControl::PowerEvent(msg) => {
+                power_tx.send(msg).expect("power_tx.send");
+                ServiceControlHandlerResult::NoError
+            }
             _ => ServiceControlHandlerResult::NotImplemented,
         }
     };
@@ -49,7 +62,7 @@ fn service_main_with_result(_args: Vec<OsString>) -> Result<()> {
         .set_service_status(ServiceStatus {
             service_type: SERVICE_TYPE,
             current_state: ServiceState::Running,
-            controls_accepted: ServiceControlAccept::SESSION_CHANGE | ServiceControlAccept::STOP,
+            controls_accepted: events,
             exit_code: ServiceExitCode::Win32(0),
             checkpoint: 0,
             wait_hint: Duration::default(),
@@ -57,10 +70,56 @@ fn service_main_with_result(_args: Vec<OsString>) -> Result<()> {
         })
         .with_context(|| format!("failed to set {SERVICE_NAME} status"))?;
 
-    shutdown_rx.recv().context("failed to wait for shutdown")?;
-    Ok(())
+    let mut can_suspend: Option<Instant> = None;
+    loop {
+        select_biased! {
+            // Always try to shut down ASAP.
+            recv(shutdown_rx) -> msg => {
+                msg.context("failed to wait for shutdown")?;
+                return Ok(());
+            }
+
+            // Always prioritise actual events.
+            recv(power_rx) -> msg => {
+                let power_event = msg.context("failed to read POWER_EVENT")?;
+                let schedule_suspend = matches!(
+                    power_event,
+                    PowerEventParam::ResumeAutomatic | PowerEventParam::ResumeCritical);
+                if schedule_suspend {
+                    can_suspend = Some(Instant::now() + Duration::from_secs(300));
+                }
+            }
+            recv(session_rx) -> msg => {
+                let session_change = msg.context("failed to read SESSION_CHANGE")?;
+                let cancel_suspend = matches!(
+                    session_change.reason,
+                    SessionChangeReason::ConsoleConnect
+                    | SessionChangeReason::RemoteConnect
+                    | SessionChangeReason::SessionLogon
+                    | SessionChangeReason::SessionUnlock
+                    | SessionChangeReason::SessionRemoteControl
+                    | SessionChangeReason::SessionCreate);
+                if cancel_suspend {
+                    can_suspend = None;
+                }
+            }
+
+            // And handle ticks after everything else.
+            recv(ticker) -> msg => {
+                msg.context("failed to read ticker")?;
+                if let Some(suspend_time) = can_suspend {
+                    if suspend_time < Instant::now() {
+                        if let Err(err) = suspend() {
+                            log::error!("failed to suspend: {err}");
+                        }
+                    }
+                }
+            }
+        };
+    }
 }
 
-fn handle_session(_session: SessionChangeParam) -> ServiceControlHandlerResult {
-    ServiceControlHandlerResult::NotImplemented
+fn suspend() -> Result<()> {
+    let ok = unsafe { windows::Win32::System::Power::SetSuspendState(false, true, true) };
+    ok.ok().context("failed to SetSuspendState")
 }
