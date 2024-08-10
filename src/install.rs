@@ -2,13 +2,13 @@ use std::ffi::OsString;
 
 use anyhow::{Context, Result};
 use windows_service::service::{
-    ServiceAccess, ServiceErrorControl, ServiceInfo, ServiceStartType, ServiceState, ServiceType,
+    ServiceAccess, ServiceErrorControl, ServiceInfo, ServiceStartType, ServiceState,
 };
 use windows_service::service_manager::{ServiceManager, ServiceManagerAccess};
 
-use crate::cli;
+use crate::{cli, service};
 
-const SERVICE_NAME: &str = "pika-autosleep";
+const SERVICE_NAME: &str = service::SERVICE_NAME;
 
 pub fn install() -> Result<()> {
     let binary = std::env::current_exe().context("failed to get current executable")?;
@@ -16,7 +16,7 @@ pub fn install() -> Result<()> {
     let info = ServiceInfo {
         name: OsString::from(SERVICE_NAME),
         display_name: OsString::from("Pika AutoSleep"),
-        service_type: ServiceType::OWN_PROCESS,
+        service_type: service::SERVICE_TYPE,
         start_type: ServiceStartType::AutoStart,
         error_control: ServiceErrorControl::Normal,
         executable_path: binary,

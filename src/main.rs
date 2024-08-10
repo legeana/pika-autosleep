@@ -2,6 +2,7 @@ use anyhow::Result;
 
 mod cli;
 mod install;
+mod service;
 
 fn main() -> Result<()> {
     let args = cli::parse();
@@ -13,7 +14,7 @@ fn main() -> Result<()> {
             install::uninstall()?;
         }
         cli::Command::Service => {
-            unimplemented!();
+            service::start()?;
         }
     }
     Ok(())
