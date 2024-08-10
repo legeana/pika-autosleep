@@ -30,11 +30,14 @@ pub fn install() -> Result<()> {
     let manager = ServiceManager::local_computer(None::<&str>, manager_access)
         .context("ServiceManager::local_computer")?;
     let service = manager
-        .create_service(&info, ServiceAccess::CHANGE_CONFIG)
+        .create_service(&info, ServiceAccess::CHANGE_CONFIG | ServiceAccess::START)
         .context("ServiceManager::create_service")?;
     service
         .set_description(description)
         .context("Service::set_description")?;
+    service
+        .start(&[] as &[&str])
+        .with_context(|| format!("failed to start {SERVICE_NAME}"))?;
     Ok(())
 }
 
