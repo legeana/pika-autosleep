@@ -121,8 +121,12 @@ fn service_main_with_result(_args: Vec<OsString>) -> Result<()> {
                 if let Some(suspend_time) = can_suspend {
                     if suspend_time < Instant::now() {
                         log::info!("attempting to suspend at {suspend_time:?}");
-                        if let Err(err) = suspend() {
-                            log::error!("failed to suspend: {err}");
+                        match suspend() {
+                            Err(err) => log::error!("failed to suspend, will retry: {err}"),
+                            Ok(()) => {
+                                log::info!("suspend successful, resetting");
+                                can_suspend = None;
+                            }
                         }
                     }
                 } else {
