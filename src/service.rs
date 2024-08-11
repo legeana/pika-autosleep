@@ -76,6 +76,7 @@ fn service_main_with_result(_args: Vec<OsString>) -> Result<()> {
             // Always try to shut down ASAP.
             recv(shutdown_rx) -> msg => {
                 msg.context("failed to wait for shutdown")?;
+                log::warn!("received shutdown request");
                 return Ok(());
             }
 
@@ -86,7 +87,9 @@ fn service_main_with_result(_args: Vec<OsString>) -> Result<()> {
                     power_event,
                     PowerEventParam::ResumeAutomatic | PowerEventParam::ResumeCritical);
                 if schedule_suspend {
-                    can_suspend = Some(Instant::now() + Duration::from_secs(300));
+                    let suspend_time = Instant::now() + Duration::from_secs(300);
+                    can_suspend = Some(suspend_time);
+                    log::info!("scheduled suspend at {suspend_time:?}");
                 }
             }
             recv(session_rx) -> msg => {
@@ -101,6 +104,7 @@ fn service_main_with_result(_args: Vec<OsString>) -> Result<()> {
                     | SessionChangeReason::SessionCreate);
                 if cancel_suspend {
                     can_suspend = None;
+                    log::info!("cancelled suspend");
                 }
             }
 
@@ -108,11 +112,15 @@ fn service_main_with_result(_args: Vec<OsString>) -> Result<()> {
             recv(ticker) -> msg => {
                 msg.context("failed to read ticker")?;
                 if let Some(suspend_time) = can_suspend {
+                    log::info!("suspend is scheduled at {suspend_time:?}");
                     if suspend_time < Instant::now() {
+                        log::info!("attempting to suspend");
                         if let Err(err) = suspend() {
                             log::error!("failed to suspend: {err}");
                         }
                     }
+                } else {
+                    log::info!("no suspend is scheduled");
                 }
             }
         };

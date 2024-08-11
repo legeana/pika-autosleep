@@ -37,6 +37,8 @@ pub fn install() -> Result<()> {
     service
         .start(&[] as &[&str])
         .with_context(|| format!("failed to start {SERVICE_NAME}"))?;
+
+    log::info!("installed {SERVICE_NAME}");
     Ok(())
 }
 
@@ -52,6 +54,7 @@ pub fn uninstall() -> Result<()> {
     service
         .delete()
         .with_context(|| format!("failed to mark {SERVICE_NAME} for deletion"))?;
+    log::info!("uninstalled {SERVICE_NAME}");
 
     if service
         .query_status()
@@ -63,5 +66,6 @@ pub fn uninstall() -> Result<()> {
             format!("failed to stop {SERVICE_NAME}, it will be deleted when the system restarts")
         })?;
     }
+    log::info!("stopped {SERVICE_NAME}");
     Ok(())
 }
