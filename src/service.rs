@@ -25,13 +25,16 @@ fn service_main(args: Vec<OsString>) {
     if let Err(e) = service_main_with_result(args) {
         log::error!("{e}");
     }
+    log::warn!("finished service_main");
 }
 
 fn service_main_with_result(_args: Vec<OsString>) -> Result<()> {
+    log::info!("started service");
     let (shutdown_tx, shutdown_rx) = unbounded();
     let (power_tx, power_rx) = unbounded();
     let (session_tx, session_rx) = unbounded();
     let ticker = tick(Duration::from_secs(60));
+    log::info!("initialised channels");
 
     let events = ServiceControlAccept::SESSION_CHANGE
         | ServiceControlAccept::STOP
@@ -57,6 +60,7 @@ fn service_main_with_result(_args: Vec<OsString>) -> Result<()> {
 
     let status_handle = service_control_handler::register(SERVICE_NAME, event_handler)
         .with_context(|| format!("failed to register event handler for {SERVICE_NAME}"))?;
+    log::info!("registered event handler");
 
     status_handle
         .set_service_status(ServiceStatus {
@@ -69,6 +73,7 @@ fn service_main_with_result(_args: Vec<OsString>) -> Result<()> {
             process_id: None,
         })
         .with_context(|| format!("failed to set {SERVICE_NAME} status"))?;
+    log::info!("marked {SERVICE_NAME} as running");
 
     let mut can_suspend: Option<Instant> = None;
     loop {
@@ -83,6 +88,7 @@ fn service_main_with_result(_args: Vec<OsString>) -> Result<()> {
             // Always prioritise actual events.
             recv(power_rx) -> msg => {
                 let power_event = msg.context("failed to read POWER_EVENT")?;
+                log::info!("received POWER_EVENT {power_event:?}");
                 let schedule_suspend = matches!(
                     power_event,
                     PowerEventParam::ResumeAutomatic | PowerEventParam::ResumeCritical);
@@ -94,6 +100,7 @@ fn service_main_with_result(_args: Vec<OsString>) -> Result<()> {
             }
             recv(session_rx) -> msg => {
                 let session_change = msg.context("failed to read SESSION_CHANGE")?;
+                log::info!("received SESSION_CHANGE {session_change:?}");
                 let cancel_suspend = matches!(
                     session_change.reason,
                     SessionChangeReason::ConsoleConnect
@@ -112,9 +119,8 @@ fn service_main_with_result(_args: Vec<OsString>) -> Result<()> {
             recv(ticker) -> msg => {
                 msg.context("failed to read ticker")?;
                 if let Some(suspend_time) = can_suspend {
-                    log::info!("suspend is scheduled at {suspend_time:?}");
                     if suspend_time < Instant::now() {
-                        log::info!("attempting to suspend");
+                        log::info!("attempting to suspend at {suspend_time:?}");
                         if let Err(err) = suspend() {
                             log::error!("failed to suspend: {err}");
                         }
