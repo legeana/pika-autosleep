@@ -8,8 +8,12 @@ anyhow = "1.0.86"
 clap = { version = "4.5.15", features = ["derive"] }
 crossbeam-channel = "0.5.13"
 log = "0.4.22"
-simple-logging = "2.0.2"
 windows-service = "0.7.0"
+
+[dependencies.env_logger]
+version = "0.11.3"
+default-features = false
+features = ["auto-color"]
 
 [dependencies.windows]
 version = "0.58.0"
