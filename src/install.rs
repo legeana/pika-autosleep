@@ -6,9 +6,8 @@ use windows_service::service::{
 };
 use windows_service::service_manager::{ServiceManager, ServiceManagerAccess};
 
-use crate::{cli, service};
-
-const SERVICE_NAME: &str = service::SERVICE_NAME;
+use crate::cli;
+use crate::service::{SERVICE_NAME, SERVICE_TYPE};
 
 pub fn install() -> Result<()> {
     let binary = std::env::current_exe().context("failed to get current executable")?;
@@ -16,7 +15,7 @@ pub fn install() -> Result<()> {
     let info = ServiceInfo {
         name: OsString::from(SERVICE_NAME),
         display_name: OsString::from("Pika AutoSleep"),
-        service_type: service::SERVICE_TYPE,
+        service_type: SERVICE_TYPE,
         start_type: ServiceStartType::AutoStart,
         error_control: ServiceErrorControl::Normal,
         executable_path: binary,
