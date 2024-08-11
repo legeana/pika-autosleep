@@ -5,7 +5,7 @@ mod install;
 mod logconfig;
 mod service;
 
-fn main() -> Result<()> {
+fn wrap_errors() -> Result<()> {
     let args = cli::parse();
     match args.command {
         cli::Command::Install => {
@@ -22,4 +22,10 @@ fn main() -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn main() {
+    if let Err(err) = wrap_errors() {
+        log::error!("failed: {err}");
+    };
 }
