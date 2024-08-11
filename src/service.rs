@@ -14,7 +14,7 @@ use windows_service::{define_windows_service, service_dispatcher};
 
 define_windows_service!(ffi_service_main, service_main);
 
-pub const SERVICE_NAME: &str = "pika-autosleep";
+pub const SERVICE_NAME: &str = "pika-autotools";
 pub const SERVICE_TYPE: ServiceType = ServiceType::OWN_PROCESS;
 
 pub fn start() -> Result<()> {
