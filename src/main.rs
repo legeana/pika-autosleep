@@ -2,13 +2,11 @@ use anyhow::Result;
 
 mod cli;
 mod install;
+mod logconfig;
 mod service;
 
 fn main() -> Result<()> {
-    env_logger::Builder::new()
-        .filter_level(log::LevelFilter::Info)
-        .default_format()
-        .init();
+    logconfig::init()?;
     let args = cli::parse();
     match args.command {
         cli::Command::Install => {
