@@ -7,7 +7,9 @@ use windows_service::service::{
     PowerEventParam, ServiceControl, ServiceControlAccept, ServiceExitCode, ServiceState,
     ServiceStatus, ServiceType, SessionChangeReason,
 };
-use windows_service::service_control_handler::{self, ServiceControlHandlerResult};
+use windows_service::service_control_handler::{
+    register, ServiceControlHandlerResult, ServiceStatusHandle,
+};
 use windows_service::{define_windows_service, service_dispatcher};
 
 define_windows_service!(ffi_service_main, service_main);
@@ -58,22 +60,11 @@ fn service_main_with_result(_args: Vec<OsString>) -> Result<()> {
         }
     };
 
-    let status_handle = service_control_handler::register(SERVICE_NAME, event_handler)
+    let status_handle = register(SERVICE_NAME, event_handler)
         .with_context(|| format!("failed to register event handler for {SERVICE_NAME}"))?;
     log::info!("registered event handler");
 
-    status_handle
-        .set_service_status(ServiceStatus {
-            service_type: SERVICE_TYPE,
-            current_state: ServiceState::Running,
-            controls_accepted: events,
-            exit_code: ServiceExitCode::Win32(0),
-            checkpoint: 0,
-            wait_hint: Duration::default(),
-            process_id: None,
-        })
-        .with_context(|| format!("failed to set {SERVICE_NAME} status"))?;
-    log::info!("marked {SERVICE_NAME} as running");
+    set_state(&status_handle, ServiceState::Running, events)?;
 
     let mut can_suspend: Option<Instant> = None;
     loop {
@@ -82,6 +73,7 @@ fn service_main_with_result(_args: Vec<OsString>) -> Result<()> {
             recv(shutdown_rx) -> msg => {
                 msg.context("failed to wait for shutdown")?;
                 log::warn!("received shutdown request");
+                set_state(&status_handle, ServiceState::Stopped, ServiceControlAccept::empty())?;
                 return Ok(());
             }
 
@@ -142,4 +134,24 @@ fn service_main_with_result(_args: Vec<OsString>) -> Result<()> {
 fn suspend() -> Result<()> {
     let ok = unsafe { windows::Win32::System::Power::SetSuspendState(false, true, true) };
     ok.ok().context("failed to SetSuspendState")
+}
+
+fn set_state(
+    service: &ServiceStatusHandle,
+    state: ServiceState,
+    events: ServiceControlAccept,
+) -> Result<()> {
+    service
+        .set_service_status(ServiceStatus {
+            service_type: SERVICE_TYPE,
+            current_state: state,
+            controls_accepted: events,
+            exit_code: ServiceExitCode::Win32(0),
+            checkpoint: 0,
+            wait_hint: Duration::default(),
+            process_id: None,
+        })
+        .with_context(|| format!("failed to set {SERVICE_NAME} status to {state:?}"))?;
+    log::info!("set {SERVICE_NAME} to {state:?}");
+    Ok(())
 }
