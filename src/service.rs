@@ -91,7 +91,9 @@ fn service_main_with_result(_args: Vec<OsString>) -> Result<()> {
                 log::info!("received POWER_EVENT {power_event:?}");
                 let schedule_suspend = matches!(
                     power_event,
-                    PowerEventParam::ResumeAutomatic | PowerEventParam::ResumeCritical);
+                    PowerEventParam::ResumeAutomatic
+                    | PowerEventParam::ResumeCritical
+                    | PowerEventParam::ResumeSuspend);
                 if schedule_suspend {
                     let suspend_time = Instant::now() + Duration::from_secs(300);
                     can_suspend = Some(suspend_time);
