@@ -1,16 +1,14 @@
-use anyhow::{Context, Result};
-use directories::ProjectDirs;
+use anyhow::{anyhow, Context, Result};
 
-use crate::service::SERVICE_NAME;
+pub fn init_cli() -> Result<()> {
+    simple_logging::log_to_stderr(log::LevelFilter::Info);
+    Ok(())
+}
 
-pub fn init() -> Result<()> {
-    let dirs = ProjectDirs::from("ie", "liri", SERVICE_NAME)
-        .context("failed to get {SERVICE_NAME} directories")?;
-    let data = dirs.data_local_dir();
-    std::fs::create_dir_all(data)
-        .with_context(|| format!("failed to create project directory {data:?}"))?;
-    let log = data.join("log.txt");
-
+pub fn init_service() -> Result<()> {
+    let exe = std::env::current_exe().context("failed to get current executable")?;
+    let dir = exe.parent().ok_or_else(|| anyhow!("failed to get {exe:?} parent directory"))?;
+    let log = dir.join("service-log.txt");
     simple_logging::log_to_file(&log, log::LevelFilter::Info)
         .with_context(|| format!("failed to log into {log:?}"))
 }

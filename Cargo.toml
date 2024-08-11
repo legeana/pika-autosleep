@@ -7,7 +7,6 @@ edition = "2021"
 anyhow = "1.0.86"
 clap = { version = "4.5.15", features = ["derive"] }
 crossbeam-channel = "0.5.13"
-directories = "5.0.1"
 log = "0.4.22"
 simple-logging = "2.0.2"
 windows-service = "0.7.0"
