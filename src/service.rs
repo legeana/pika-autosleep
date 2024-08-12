@@ -87,9 +87,10 @@ fn service_main_with_result(_args: Vec<OsString>) -> Result<()> {
                     | PowerEventParam::ResumeCritical
                     | PowerEventParam::ResumeSuspend);
                 if schedule_suspend {
-                    let suspend_time = Instant::now() + Duration::from_secs(300);
+                    let login_timeout = Duration::from_secs(300);
+                    let suspend_time = Instant::now() + login_timeout;
                     can_suspend = Some(suspend_time);
-                    log::info!("scheduled suspend at {suspend_time:?}");
+                    log::info!("scheduled suspend in {login_timeout:?}");
                 }
             }
             recv(session_rx) -> msg => {
@@ -113,8 +114,9 @@ fn service_main_with_result(_args: Vec<OsString>) -> Result<()> {
             recv(ticker) -> msg => {
                 msg.context("failed to read ticker")?;
                 if let Some(suspend_time) = can_suspend {
-                    if suspend_time < Instant::now() {
-                        log::info!("attempting to suspend at {suspend_time:?}");
+                    let now = Instant::now();
+                    if suspend_time < now {
+                        log::info!("attempting to suspend in {:?}", suspend_time - now);
                         match suspend() {
                             Err(err) => log::error!("failed to suspend, will retry: {err}"),
                             Ok(()) => {
