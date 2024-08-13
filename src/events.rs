@@ -25,6 +25,21 @@ pub trait Callbacks {
     }
 }
 
+fn on_event(callbacks: &mut impl Callbacks, event: ServiceControl) -> Result<()> {
+    match event {
+        ServiceControl::PowerEvent(power_event) => {
+            callbacks.on_power_event(power_event)
+        }
+        ServiceControl::SessionChange(session_change) => {
+            callbacks.on_session_change(session_change)
+        }
+        _ => {
+            log::error!("unexpected event {event:?}");
+            Ok(())
+        }
+    }
+}
+
 pub fn handle_events(mut callbacks: impl Callbacks) -> Result<()> {
     log::info!("preparing to listen to events");
     let events = callbacks.listen() | ServiceControlAccept::STOP;
@@ -67,19 +82,7 @@ pub fn handle_events(mut callbacks: impl Callbacks) -> Result<()> {
             // Then handle the events. We want to notify the user ASAP.
             recv(event_rx) -> msg => {
                 let event = msg.context("failed to receive event")?;
-                let result = match event {
-                    ServiceControl::PowerEvent(power_event) => {
-                        callbacks.on_power_event(power_event)
-                    }
-                    ServiceControl::SessionChange(session_change) => {
-                        callbacks.on_session_change(session_change)
-                    }
-                    _ => {
-                        log::error!("unexpected event {event:?}");
-                        Ok(())
-                    }
-                };
-                result?;
+                on_event(&mut callbacks, event)?;
             }
             // And handle ticks last. This way the user should have received all
             // the information.
