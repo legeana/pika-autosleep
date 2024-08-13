@@ -2,9 +2,7 @@ use std::ffi::OsString;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
-use windows_service::service::{
-    PowerEventParam, ServiceControlAccept, SessionChangeParam, SessionChangeReason,
-};
+use windows_service::service::{PowerEventParam, SessionChangeParam, SessionChangeReason};
 use windows_service::{define_windows_service, service_dispatcher};
 
 use crate::constants::SERVICE_NAME;
@@ -51,10 +49,6 @@ impl events::Callbacks for AutoSleeper {
             log::info!("no suspend is scheduled");
         }
         Ok(())
-    }
-
-    fn listen(&self) -> ServiceControlAccept {
-        ServiceControlAccept::POWER_EVENT | ServiceControlAccept::SESSION_CHANGE
     }
 
     fn on_power_event(&mut self, power_event: PowerEventParam) -> Result<()> {

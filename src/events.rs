@@ -14,7 +14,9 @@ pub trait Callbacks {
         Ok(())
     }
     // Events.
-    fn listen(&self) -> ServiceControlAccept;
+    fn listen(&self) -> ServiceControlAccept {
+        ServiceControlAccept::POWER_EVENT | ServiceControlAccept::SESSION_CHANGE
+    }
     fn on_power_event(&mut self, _power_event: PowerEventParam) -> Result<()> {
         Ok(())
     }
