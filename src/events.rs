@@ -44,6 +44,9 @@ pub fn handle_events(mut callbacks: impl Callbacks) -> Result<()> {
     log::info!("preparing to listen to events");
     let events = callbacks.listen() | ServiceControlAccept::STOP;
 
+    log::info!("ticking every {:?}", callbacks.tick_duration());
+    let ticker = tick(callbacks.tick_duration());
+
     log::info!("preparing internal event handler");
     let (shutdown_tx, shutdown_rx) = unbounded();
     let (event_tx, event_rx) = unbounded();
@@ -61,37 +64,40 @@ pub fn handle_events(mut callbacks: impl Callbacks) -> Result<()> {
             _ => ServiceControlHandlerResult::NotImplemented,
         }
     };
+    let mut event_loop = move || -> Result<()> {
+        loop {
+            select_biased! {
+                // Always try to shut down ASAP.
+                recv(shutdown_rx) -> msg => {
+                    msg.context("failed to wait for shutdown")?;
+                    log::warn!("received shutdown request");
+                    return Ok(());
+                }
+                // Then handle the events. We want to notify the user ASAP.
+                recv(event_rx) -> msg => {
+                    let event = msg.context("failed to receive event")?;
+                    on_event(&mut callbacks, event)?;
+                }
+                // And handle ticks last. This way the user should have received all
+                // the information.
+                recv(ticker) -> msg => {
+                    let now = msg.context("failed to receive tick")?;
+                    callbacks.on_tick(now)?;
+                }
+            }
+        }
+    };
 
     let status_handle = register(SERVICE_NAME, event_handler)
         .with_context(|| format!("failed to register event handler for {SERVICE_NAME}"))?;
     log::info!("registered event handler");
 
     set_state(&status_handle, ServiceState::Running, events)?;
-
-    let ticker = tick(callbacks.tick_duration());
-    log::info!("ticking every {:?}", callbacks.tick_duration());
-    loop {
-        select_biased! {
-            // Always try to shut down ASAP.
-            recv(shutdown_rx) -> msg => {
-                msg.context("failed to wait for shutdown")?;
-                log::warn!("received shutdown request");
-                set_state(&status_handle, ServiceState::Stopped, ServiceControlAccept::empty())?;
-                return Ok(());
-            }
-            // Then handle the events. We want to notify the user ASAP.
-            recv(event_rx) -> msg => {
-                let event = msg.context("failed to receive event")?;
-                on_event(&mut callbacks, event)?;
-            }
-            // And handle ticks last. This way the user should have received all
-            // the information.
-            recv(ticker) -> msg => {
-                let now = msg.context("failed to receive tick")?;
-                callbacks.on_tick(now)?;
-            }
-        }
-    }
+    // Clean up regardless of the event_loop result.
+    let result = event_loop();
+    set_state(&status_handle, ServiceState::Stopped, ServiceControlAccept::empty())?;
+    // Return event_loop result unless cleanup failed.
+    result
 }
 
 fn set_state(
