@@ -1,6 +1,8 @@
 use anyhow::Result;
 
 mod cli;
+mod constants;
+mod events;
 mod install;
 mod logconfig;
 mod service;

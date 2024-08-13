@@ -7,7 +7,7 @@ use windows_service::service::{
 use windows_service::service_manager::{ServiceManager, ServiceManagerAccess};
 
 use crate::cli;
-use crate::service::{SERVICE_NAME, SERVICE_TYPE};
+use crate::constants::{SERVICE_NAME, SERVICE_TYPE};
 
 pub fn install() -> Result<()> {
     let binary = std::env::current_exe().context("failed to get current executable")?;
