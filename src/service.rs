@@ -34,19 +34,19 @@ impl events::Callbacks for AutoSleeper {
     }
 
     fn on_tick(&mut self, now: Instant) -> Result<()> {
-        if let Some(suspend_time) = self.can_suspend {
-            if suspend_time < now {
-                log::info!("attempting to suspend in {:?}", suspend_time - now);
-                match suspend() {
-                    Err(err) => log::error!("failed to suspend, will retry: {err}"),
-                    Ok(()) => {
-                        log::info!("suspend successful, resetting");
-                        self.can_suspend = None;
-                    }
+        let Some(suspend_time) = self.can_suspend else {
+            log::debug!("no suspend is scheduled");
+            return Ok(());
+        };
+        if suspend_time < now {
+            log::info!("attempting to suspend in {:?}", suspend_time - now);
+            match suspend() {
+                Err(err) => log::error!("failed to suspend, will retry: {err}"),
+                Ok(()) => {
+                    log::info!("suspend successful, resetting");
+                    self.can_suspend = None;
                 }
             }
-        } else {
-            log::info!("no suspend is scheduled");
         }
         Ok(())
     }
